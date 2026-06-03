@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tablet Mexico — Competitor Price Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<script src="data.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+/* ═══ TOKENS — dark ══════════════════════════════════════════════ */
+:root{
+  --bg:#0a0e14;--s0:#0d1017;--s1:#14191f;--s2:#1c2330;
+  --border:#1e2a3a;--border-sub:rgba(30,42,58,.65);
+  --accent:#ff8f40;--accent-dim:rgba(255,143,64,.14);
+  --text:#bfbdb6;--text2:#8a9199;--muted:#626a73;
+  --b-xiaomi:#ff8f40;--b-samsung:#59c2ff;--b-lenovo:#aad94c;
+  --b-honor:#f07178;--b-huawei:#d2a6ff;--b-other:#8a9199;
+  --pos:#aad94c;--neg:#f07178;--warn:#ffb454;
+  --r-sm:10px;--r-md:20px;--r-lg:32px;
+  --sh-sm:0 2px 12px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.25);
+  --sh-md:0 6px 24px rgba(0,0,0,.42),0 2px 6px rgba(0,0,0,.22);
+}
+/* ═══ TOKENS — light ═════════════════════════════════════════════ */
+body.light{
+  --bg:#f8f9fa;--s0:#fcfcfc;--s1:#f0f2f5;--s2:#e6e9ef;
+  --border:#d0d6e0;--border-sub:rgba(180,190,210,.5);
+  --accent:#fa8532;--accent-dim:rgba(250,133,50,.13);
+  --text:#0b0e14;--text2:#3d4554;--muted:#6c7989;
+  --b-xiaomi:#e07020;--b-samsung:#1a7ab5;--b-lenovo:#3d9e40;
+  --b-honor:#c0404a;--b-huawei:#7040b8;--b-other:#555;
+  --pos:#3d9e40;--neg:#c93d36;--warn:#c47e10;
+  --sh-sm:0 2px 10px rgba(40,20,8,.1),0 1px 3px rgba(40,20,8,.07);
+  --sh-md:0 6px 20px rgba(40,20,8,.12),0 2px 5px rgba(40,20,8,.07);
+}
+
+/* ═══ BASE ═══════════════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans','PingFang SC',system-ui,sans-serif;font-size:14px;line-height:1.5;background:var(--bg);color:var(--text);min-height:100vh;transition:background .2s,color .2s}
+.mono{font-family:'DM Mono','Courier New',monospace}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+button{cursor:pointer;font-family:inherit}
+
+/* ═══ HEADER ════════════════════════════════════════════════════ */
+header{background:var(--s0);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:var(--sh-md);transition:background .2s,border-color .2s}
+.header-inner{max-width:1440px;margin:0 auto;padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:56px;gap:16px}
+.header-logo{font-size:1.25rem;font-weight:700;color:var(--accent);letter-spacing:.01em;flex-shrink:0;line-height:1}
+.header-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.header-title{font-size:.82rem;font-weight:400;color:var(--muted)}
+.header-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.btn-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:var(--r-lg);border:1px solid var(--border);background:transparent;color:var(--text2);font-size:.73rem;font-weight:500;transition:all .15s;cursor:pointer;font-family:inherit}
+.btn-pill:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Export button — matches Xiaomi dashboard: ghost pill, green on hover */
+.btn-export:hover{border-color:var(--pos)!important;color:var(--pos)!important}
+
+.header-meta-bar{background:var(--bg);border-bottom:1px solid var(--border-sub);transition:background .2s}
+.header-meta-inner{max-width:1440px;margin:0 auto;padding:4px 32px;display:flex;align-items:center;justify-content:center;gap:10px}
+.meta-pill{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text2)}
+.meta-pill span{color:var(--text);font-weight:500}
+.meta-dot{width:3px;height:3px;border-radius:50%;background:var(--border);flex-shrink:0}
+
+/* ═══ TAB BAR ═══════════════════════════════════════════════════ */
+.tab-bar-wrap{background:var(--s0);border-bottom:1px solid var(--border)}
+.tab-bar-inner{max-width:1440px;margin:0 auto;padding:10px 32px}
+.tab-group{display:inline-flex;background:var(--s1);border-radius:var(--r-lg);padding:4px;gap:2px}
+.tab-btn{padding:7px 20px;border-radius:var(--r-lg);border:none;background:transparent;color:var(--muted);font-size:.78rem;font-weight:500;transition:all .18s;white-space:nowrap;letter-spacing:.01em}
+.tab-btn.active{background:var(--s0);color:var(--text);font-weight:600;box-shadow:var(--sh-sm)}
+.tab-btn:hover:not(.active){color:var(--text2)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* ═══ FILTER BAR ════════════════════════════════════════════════ */
+.filter-bar{background:var(--s0);border-bottom:1px solid var(--border);transition:background .2s,border-color .2s}
+.filter-inner{max-width:1440px;margin:0 auto;padding:10px 32px;display:flex;align-items:center;flex-wrap:wrap;gap:14px}
+.filter-group{display:flex;align-items:center;gap:8px}
+.filter-label{font-family:'DM Mono',monospace;font-size:.6rem;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+.filter-divider{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.chip-row{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:var(--r-lg);border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.72rem;font-weight:400;transition:all .15s;white-space:nowrap;cursor:pointer;font-family:inherit}
+.chip:hover{color:var(--text2);border-color:var(--text2)}
+.chip.active{border-color:var(--accent);background:var(--accent-dim);color:var(--text);font-weight:600}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.week-select{font-family:'DM Mono',monospace;background:var(--s1);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 28px 4px 8px;font-size:.72rem;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a9199'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color .15s}
+.week-select:focus{border-color:var(--accent)}
+.week-sep{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--muted);padding:0 2px}
+
+/* ═══ MAIN ══════════════════════════════════════════════════════ */
+main{max-width:1440px;margin:0 auto;padding:26px 32px 60px}
+.grid-gap{display:grid;gap:14px}
+.card-eyebrow{font-family:'DM Mono',monospace;font-size:.6rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}
+.card-title{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:16px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.card-hint{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted)}
+
+/* ═══ SNAPSHOT TABLE ════════════════════════════════════════════ */
+.tbl-outer{overflow-x:auto;border-radius:var(--r-md);box-shadow:var(--sh-md);background:var(--s0);transition:background .2s}
+table{width:100%;border-collapse:collapse;font-size:.78rem;table-layout:fixed}
+table.hist-table{table-layout:auto}
+thead th{background:var(--s1);padding:10px 14px;font-family:'DM Mono',monospace;font-size:.63rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);white-space:nowrap;text-align:left;transition:background .2s;position:sticky;top:0;z-index:3}
+thead th.right{text-align:right}
+tbody tr{border-bottom:1px solid var(--border-sub);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--s1)}
+tbody td{padding:10px 14px;vertical-align:middle}
+td.right{text-align:right}
+tbody tr[data-rc] td:first-child{border-left:2px solid var(--row-color,transparent)}
+.price-main{font-weight:600;color:var(--text);white-space:nowrap}
+.price-disc{font-family:'DM Mono',monospace;font-size:.62rem;margin-top:2px}
+.disc-pos{color:var(--pos)}.disc-neg{color:var(--neg)}.disc-neu{color:var(--muted)}
+.price-na{color:var(--muted);font-size:.72rem}
+.deal-pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:.68rem;font-weight:600}
+.deal-hot{background:rgba(240,113,120,.15);color:var(--neg)}
+.deal-good{background:rgba(170,217,76,.14);color:var(--pos)}
+.deal-warn{background:rgba(255,180,84,.14);color:var(--warn)}
+.deal-flat{background:rgba(128,128,128,.09);color:var(--muted)}
+.deal-sub{font-family:'DM Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:2px}
+
+/* ═══ SPARKLINE ════════════════════════════════════════════════= */
+.spark-cell{padding:6px 14px;white-space:nowrap;cursor:default}
+#tt{position:fixed;pointer-events:none;z-index:9999;background:var(--s2);color:var(--text);font-family:'DM Mono',monospace;font-size:.65rem;padding:6px 11px;border-radius:var(--r-sm);border:1px solid var(--border);box-shadow:var(--sh-md);opacity:0;transition:opacity .1s;white-space:nowrap;max-width:480px;line-height:1.6}
+#tt.show{opacity:1}
+
+/* ═══ HISTORICAL TABLE ══════════════════════════════════════════ */
+.hist-wrap{overflow-x:auto;border-radius:var(--r-md);box-shadow:var(--sh-md);background:var(--s0)}
+.hist-table{border-collapse:collapse;font-size:.72rem;white-space:nowrap}
+.hist-table thead th{background:var(--s1);padding:8px 12px;font-family:'DM Mono',monospace;font-size:.6rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);border-right:1px solid var(--border-sub);text-align:center;position:sticky;top:0;z-index:2}
+.hist-table thead th.h-product{text-align:left;min-width:180px;position:sticky;top:0;left:0;z-index:4;background:var(--s1)}
+.hist-table thead th.h-chan{text-align:left;min-width:90px;position:sticky;top:0;left:180px;z-index:4;background:var(--s1);border-right:2px solid var(--border)}
+.hist-table tbody tr{border-bottom:1px solid var(--border-sub);transition:background .1s}
+.hist-table tbody tr:hover{background:var(--s1)}
+.hist-table tbody td{padding:7px 12px;border-right:1px solid var(--border-sub);text-align:center;font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text2)}
+.hist-table tbody td.h-product{text-align:left;font-family:'DM Sans',sans-serif;font-size:.76rem;font-weight:600;position:sticky;left:0;z-index:1;background:var(--s0);border-right:1px solid var(--border-sub)}
+.hist-table tbody td.h-chan{text-align:left;font-family:'DM Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;position:sticky;left:180px;z-index:1;background:var(--s0);border-right:2px solid var(--border)}
+.hist-table tbody tr:hover td.h-product,.hist-table tbody tr:hover td.h-chan{background:var(--s1)}
+.hist-table tbody td.has-price{color:var(--text);font-weight:500}
+.hist-table tbody td.no-price{color:var(--muted);opacity:.4}
+.hist-table tbody tr.model-first-row td{border-top:1px solid var(--border)}
+.hist-table th.cur-week{color:var(--accent)!important}
+.hist-table td.cur-week{background:rgba(255,143,64,.05)}
+.wow{font-size:.6rem;font-weight:700;margin-left:3px;vertical-align:middle}
+.wow-up{color:var(--neg)}.wow-down{color:var(--pos)}
+.hist-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hist-legend-item{display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted)}
+
+/* ═══ README ════════════════════════════════════════════════════ */
+.rm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:900px){.rm-grid{grid-template-columns:1fr}}
+.rm-card{background:var(--s0);border-radius:var(--r-md);box-shadow:var(--sh-sm);padding:22px}
+.rm-card h2{font-size:.92rem;font-weight:700;color:var(--text);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.rm-card h3{font-size:.8rem;font-weight:700;color:var(--accent);margin:14px 0 5px}
+.rm-card h3:first-of-type{margin-top:0}
+.rm-card p,.rm-card li{font-size:.8rem;color:var(--text2);line-height:1.75}
+.rm-card ul,.rm-card ol{padding-left:18px;margin:4px 0 10px}
+.rm-card li{margin-bottom:3px}
+.rm-card strong{color:var(--text);font-weight:600}
+.rm-card code{font-family:'DM Mono',monospace;font-size:.74rem;background:var(--s2);padding:1px 6px;border-radius:4px;color:var(--accent)}
+.rm-step{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.rm-step-num{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--bg);font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.rm-step-body strong{display:block;font-size:.82rem;color:var(--text);font-weight:600;margin-bottom:2px}
+.rm-step-body p{font-size:.78rem;color:var(--text2);line-height:1.6;margin:0}
+.rm-file-row{display:flex;gap:10px;margin-bottom:8px;align-items:baseline}
+.rm-file-name{font-family:'DM Mono',monospace;font-size:.74rem;color:var(--accent);flex-shrink:0;min-width:200px}
+.rm-file-desc{font-size:.78rem;color:var(--text2);line-height:1.55}
+.rm-warn{background:rgba(255,180,84,.08);border:1px solid rgba(255,180,84,.25);border-radius:var(--r-sm);padding:10px 14px;margin-top:10px;font-size:.78rem;color:#ffb454;line-height:1.6}
+.rm-panel{display:none}.rm-panel.active{display:block}
+.rm-lang-row{display:flex;gap:8px;margin-bottom:22px}
+.rm-lang-btn{padding:5px 16px;border-radius:var(--r-lg);border:1px solid var(--border);background:transparent;color:var(--text2);font-size:.76rem;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+.rm-lang-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--text);font-weight:600}
+
+.empty-state{text-align:center;padding:40px;color:var(--muted);font-size:.82rem}
+</style>
+</head>
+<body>
+<div id="tt"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      <span class="header-logo">Tablet</span>
+      <span class="header-sep"></span>
+      <span class="header-title" data-i18n="header_sub">Mexico — Competitor Price Tracker</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-pill btn-export" onclick="exportHistorical()" data-i18n="btn_export">↓ Export</button>
+      <button class="btn-pill" id="lang-btn" onclick="toggleLang()">中文</button>
+      <button class="btn-pill" id="theme-btn" onclick="toggleTheme()">☀️ Light</button>
+    </div>
+  </div>
+  <div class="header-meta-bar">
+    <div class="header-meta-inner">
+      <span class="meta-pill" id="meta-source">—</span>
+      <div class="meta-dot"></div>
+      <span class="meta-pill" id="meta-note">—</span>
+      <div class="meta-dot"></div>
+      <span class="meta-pill"><span data-i18n="meta_gen">Generated</span> <span id="meta-gen">—</span></span>
+    </div>
+  </div>
+</header>
+
+<!-- TAB BAR -->
+<div class="tab-bar-wrap">
+  <div class="tab-bar-inner">
+    <div class="tab-group">
+      <button class="tab-btn active" data-tab="recent" data-i18n="tab_recent">Recent Snapshot</button>
+      <button class="tab-btn" data-tab="historical" data-i18n="tab_hist">Historical Data</button>
+      <button class="tab-btn" data-tab="readme" data-i18n="tab_readme">Readme</button>
+    </div>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar" id="filter-bar">
+  <div class="filter-inner">
+    <div class="filter-group">
+      <span class="filter-label" data-i18n="lbl_series">Series</span>
+      <div class="chip-row" id="series-chips"></div>
+    </div>
+    <div class="filter-divider"></div>
+    <div class="filter-group">
+      <span class="filter-label" data-i18n="lbl_brand">Brand</span>
+      <div class="chip-row" id="brand-chips"></div>
+    </div>
+    <div class="filter-divider" id="week-divider"></div>
+    <div class="filter-group" id="week-group">
+      <span class="filter-label" data-i18n="lbl_week">Week</span>
+      <select class="week-select" id="f-week"></select>
+    </div>
+    <div class="filter-divider" id="hist-chan-div" style="display:none"></div>
+    <div class="filter-group" id="hist-chan-group" style="display:none">
+      <span class="filter-label" data-i18n="lbl_channel">Channel</span>
+      <div class="chip-row" id="hist-chan-chips"></div>
+    </div>
+    <div class="filter-divider" id="hist-range-div" style="display:none"></div>
+    <div class="filter-group" id="hist-range-group" style="display:none">
+      <span class="filter-label" data-i18n="lbl_weeks">Weeks</span>
+      <select class="week-select" id="hist-from"></select>
+      <span class="week-sep">→</span>
+      <select class="week-select" id="hist-to"></select>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+
+  <!-- RECENT SNAPSHOT -->
+  <div class="tab-pane active" id="pane-recent">
+    <div class="grid-gap">
+      <div>
+        <div class="card-header" style="padding:0 0 10px">
+          <div>
+            <div class="card-eyebrow" data-i18n="tab_recent">Recent Snapshot</div>
+            <div class="card-title" style="margin:0" id="table-title"></div>
+          </div>
+          <span class="card-hint" data-i18n="hint_recent">% showing difference from MSRP · Hover over trendline for values · Click prices to launch product page</span>
+        </div>
+        <div class="tbl-outer">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="th_product">Product</th>
+                <th class="right" data-i18n="th_official">Official</th>
+                <th class="right">Liverpool</th>
+                <th class="right">Elektra</th>
+                <th class="right">Coppel</th>
+                <th class="right">Telcel</th>
+                <th data-i18n="th_trend">Trend 4w</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-a-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORICAL DATA -->
+  <div class="tab-pane" id="pane-historical">
+    <div>
+      <div class="card-header" style="padding:0 0 14px">
+        <div>
+          <div class="card-eyebrow" data-i18n="tab_hist">Historical Data</div>
+          <div class="card-title" style="margin:0" id="hist-title"></div>
+        </div>
+        <div class="hist-legend">
+          <span class="hist-legend-item"><span class="wow wow-down">▼</span> <span data-i18n="leg_down">price dropped vs prev week</span></span>
+          <span class="hist-legend-item"><span class="wow wow-up">▲</span> <span data-i18n="leg_up">price rose</span></span>
+          <span class="hist-legend-item"><span style="color:var(--muted);font-size:.7rem">—</span> <span data-i18n="leg_na">not recorded</span></span>
+          <span class="hist-legend-item"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(255,143,64,.12);border:1px solid rgba(255,143,64,.35);margin-right:3px"></span><span data-i18n="leg_cur">current week</span></span>
+        </div>
+      </div>
+      <div class="hist-wrap">
+        <table class="hist-table">
+          <thead><tr id="hist-head"></tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- README -->
+  <div class="tab-pane" id="pane-readme">
+    <!-- ENGLISH README -->
+    <div class="rm-panel active" id="rm-en">
+      <div class="rm-card" style="margin-bottom:16px">
+        <h2>📊 About This Dashboard</h2>
+        <p>This is a <strong>competitive price intelligence tool</strong> for Tablet Mexico, tracking the weekly retail prices of tablet models across five channels — Official Site, Liverpool, Elektra, Coppel, and Telcel — in the Mexican market. Data is stored in <code>data.js</code> alongside the dashboard file. No internet connection or server is needed to view it.</p>
+        <p style="margin-top:10px">Brand color coding: <strong style="color:var(--b-xiaomi)">Xiaomi / Redmi / POCO</strong> · <strong style="color:var(--b-samsung)">Samsung</strong> · <strong style="color:var(--b-lenovo)">Lenovo</strong> · <strong style="color:var(--b-honor)">Honor</strong> · <strong style="color:var(--b-huawei)">Huawei</strong></p>
+      </div>
+
+      <div class="rm-grid">
+        <div class="rm-card">
+          <h2>📑 Tab Guide</h2>
+          <h3>Recent Snapshot</h3>
+          <p>Shows the current week's promotional prices for every tracked model across all channels. Each price cell shows the <strong>promotional price</strong>, the channel's RRP in light gray below it, and the <strong>% discount</strong>. A competitor price is highlighted in red when it undercuts Xiaomi's best price in the same series and channel. The 4-week sparkline in the last column shows recent price movement.</p>
+          <h3>Historical Data</h3>
+          <p>A full price history table — rows are product-channel combinations, columns are weeks. Use the <strong>Channel</strong> and <strong>Week range</strong> filters (visible on this tab) to narrow the view. <strong>▼ green</strong> means the price dropped vs the previous week; <strong>▲ red</strong> means it rose. The highlighted column is the currently selected week.</p>
+          <h3>Export</h3>
+          <p>The <strong>↓ Export</strong> button at the top right downloads the current Historical Data view (respecting all active filters) as a formatted <code>.xlsx</code> file. Prices are stored as plain numbers so Excel can sort and chart them.</p>
+          <h3>Readme</h3>
+          <p>This page.</p>
+        </div>
+
+        <div class="rm-card">
+          <h2>📁 Folder Contents</h2>
+          <div class="rm-file-row"><span class="rm-file-name">index.html</span><span class="rm-file-desc">The dashboard — open in any browser. No server needed.</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">data.js</span><span class="rm-file-desc">All price data in JS format. Regenerated by <code>update.py</code> each week. Do not edit manually.</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">historical_data.xlsx</span><span class="rm-file-desc">Master price tracker. Four sheets (S85, S84, S83, S82). Rows = product-channel, columns = weeks. This is the source of truth.</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">update.py</span><span class="rm-file-desc">Weekly update script. Scrapes prices using Playwright, prompts for anything it can't fetch, then writes the new week to <code>data.js</code>.</span></div>
+        </div>
+      </div>
+
+      <div class="rm-card">
+        <h2>⚙️ How to Update Each Week</h2>
+        <div class="rm-step">
+          <div class="rm-step-num">1</div>
+          <div class="rm-step-body">
+            <strong>First-time setup only</strong>
+            <p>Install Playwright: <code>pip install playwright</code> then <code>playwright install chromium</code>. You only need to do this once.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">2</div>
+          <div class="rm-step-body">
+            <strong>Run the update script</strong>
+            <p>Open a terminal in the Pad Competition folder and run <code>python update.py</code>. Confirm the week label (e.g. <code>W23-2026</code>) — it defaults to the next week automatically.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">3</div>
+          <div class="rm-step-body">
+            <strong>Watch the scraper run</strong>
+            <p>The script opens a headless browser and visits each product URL. Successfully fetched prices are shown with <code>→ $price</code>. Anything it couldn't get is queued and shown at the end.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">4</div>
+          <div class="rm-step-body">
+            <strong>Handle manual entries</strong>
+            <p>After scraping finishes, you're prompted for any prices that couldn't be fetched automatically — one by one with the product name, channel, RRP, and link shown. Press Enter to skip a product, or <code>-</code> to mark it as unavailable.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">5</div>
+          <div class="rm-step-body">
+            <strong>Refresh the dashboard</strong>
+            <p><code>data.js</code> is updated automatically. Just reload <code>index.html</code> in your browser — the new week column appears immediately.</p>
+          </div>
+        </div>
+        <div class="rm-warn">💡 Tip: run <code>python update.py --dry-run</code> first to test the scraper without saving anything. All prices are fetched and shown but <code>data.js</code> is not modified.</div>
+      </div>
+    </div>
+
+    <!-- CHINESE README -->
+    <div class="rm-panel" id="rm-zh">
+      <div class="rm-card" style="margin-bottom:16px">
+        <h2>📊 关于本看板</h2>
+        <p>这是一个<strong>竞品价格情报工具</strong>，追踪墨西哥市场平板电脑的每周零售价格，覆盖五大渠道：官网、Liverpool、Elektra、Coppel 和 Telcel。数据存储在与看板同目录的 <code>data.js</code> 文件中，无需联网或服务器即可查看。</p>
+        <p style="margin-top:10px">品牌颜色标注：<strong style="color:var(--b-xiaomi)">小米 / Redmi / POCO</strong> · <strong style="color:var(--b-samsung)">三星</strong> · <strong style="color:var(--b-lenovo)">联想</strong> · <strong style="color:var(--b-honor)">荣耀</strong> · <strong style="color:var(--b-huawei)">华为</strong></p>
+      </div>
+
+      <div class="rm-grid">
+        <div class="rm-card">
+          <h2>📑 标签页说明</h2>
+          <h3>最新快照</h3>
+          <p>展示当前周所有机型在各渠道的促销价格。每个价格单元格显示<strong>促销价</strong>，下方灰色小字为该渠道建议零售价，以及<strong>折扣百分比</strong>。当竞品在同系列、同渠道的价格低于我方最优价时，单元格以红色高亮显示。最后一列的4周迷你折线图展示近期价格走势。</p>
+          <h3>历史数据</h3>
+          <p>完整历史价格表格——行为产品渠道组合，列为各周。使用本标签页独有的<strong>渠道</strong>和<strong>周期范围</strong>筛选器缩小查看范围。<strong>▼ 绿色</strong>表示价格较上周下降；<strong>▲ 红色</strong>表示价格上涨。高亮列为当前所选周。</p>
+          <h3>导出</h3>
+          <p>右上角<strong>↓ 导出</strong>按钮将当前历史数据视图（含所有筛选条件）导出为格式化 <code>.xlsx</code> 文件。价格以纯数字存储，便于 Excel 排序和制图。</p>
+          <h3>说明</h3>
+          <p>即本页。</p>
+        </div>
+
+        <div class="rm-card">
+          <h2>📁 文件夹内容</h2>
+          <div class="rm-file-row"><span class="rm-file-name">index.html</span><span class="rm-file-desc">看板主文件，用任意浏览器打开即可，无需服务器。</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">data.js</span><span class="rm-file-desc">所有价格数据（JS 格式），由 <code>update.py</code> 每周自动生成。请勿手动编辑。</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">historical_data.xlsx</span><span class="rm-file-desc">价格追踪主文件，含四个工作表（S85、S84、S83、S82），行为产品渠道，列为各周。是数据的唯一来源。</span></div>
+          <div class="rm-file-row"><span class="rm-file-name">update.py</span><span class="rm-file-desc">每周更新脚本，使用 Playwright 抓取价格，无法自动获取的价格通过手动输入补全，最终将新一周数据写入 <code>data.js</code>。</span></div>
+        </div>
+      </div>
+
+      <div class="rm-card">
+        <h2>⚙️ 每周更新流程</h2>
+        <div class="rm-step">
+          <div class="rm-step-num">1</div>
+          <div class="rm-step-body">
+            <strong>首次配置（仅需一次）</strong>
+            <p>安装 Playwright：<code>pip install playwright</code>，然后运行 <code>playwright install chromium</code>。</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">2</div>
+          <div class="rm-step-body">
+            <strong>运行更新脚本</strong>
+            <p>在 Pad Competition 文件夹中打开终端，执行 <code>python update.py</code>。确认周标签（如 <code>W23-2026</code>），脚本会自动推算下一周作为默认值。</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">3</div>
+          <div class="rm-step-body">
+            <strong>等待自动抓取</strong>
+            <p>脚本启动无头浏览器，逐一访问每个产品链接。成功获取的价格显示为 <code>→ $价格</code>，无法获取的加入队列，在最后统一处理。</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">4</div>
+          <div class="rm-step-body">
+            <strong>手动补录价格</strong>
+            <p>抓取完成后，脚本逐一提示需要手动录入的产品（显示产品名、渠道、建议零售价和链接）。直接回车跳过，输入 <code>-</code> 标记为不可用。</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-step-num">5</div>
+          <div class="rm-step-body">
+            <strong>刷新看板</strong>
+            <p><code>data.js</code> 已自动更新，在浏览器中刷新 <code>index.html</code> 即可看到新一周数据。</p>
+          </div>
+        </div>
+        <div class="rm-warn">💡 提示：可先运行 <code>python update.py --dry-run</code> 测试抓取效果，价格会被获取并展示，但不会修改 <code>data.js</code>。</div>
+      </div>
+    </div>
+  </div><!-- /pane-readme -->
+
+</main>
+
+<script>
+/* ── Data ─────────────────────────────────────────────────────── */
+const DATA=window.PAD_DATA,WEEKS=DATA.weeks,PRODUCTS=DATA.products;
+
+/* ── Translations ─────────────────────────────────────────────── */
+const STRINGS={
+  en:{
+    header_sub:'Mexico — Competitor Price Tracker',
+    btn_export:'↓ Export',
+    meta_gen:'Generated',
+    tab_recent:'Recent Snapshot',tab_hist:'Historical Data',tab_readme:'Readme',
+    lbl_series:'Series',lbl_brand:'Brand',lbl_week:'Week',lbl_channel:'Channel',lbl_weeks:'Weeks',
+    all:'All',
+    th_product:'Product',th_official:'Official',th_best:'Best deal',th_trend:'Trend 4w',
+    hint_recent:'% showing difference from MSRP · Hover over trendline for values · Click prices to launch product page',
+    eyebrow_recent:'Recent Snapshot',eyebrow_hist:'Historical Data',
+    hist_title_fn:(f,t)=>`${f} → ${t}`,
+    table_title_fn:(ser,wk,gen)=>`${ser} · ${wk} · <span style="font-family:'DM Mono',monospace;font-size:.75rem;font-weight:400;color:var(--text2)">Updated ${gen}</span>`,
+    all_series:'All series',series_label:(n)=>`Series ${n}`,
+    leg_down:'price dropped vs prev week',leg_up:'price rose',leg_na:'not recorded',leg_cur:'current week',
+    no_data:'No data for this filter.',
+    th_product_hist:'Product',th_chan_hist:'Channel',
+    lang_btn:'中文',theme_light:'☀️ Light',theme_dark:'🌙 Dark',
+  },
+  zh:{
+    header_sub:'墨西哥 — 竞品价格追踪',
+    btn_export:'↓ 导出',
+    meta_gen:'生成于',
+    tab_recent:'最新快照',tab_hist:'历史数据',tab_readme:'说明',
+    lbl_series:'系列',lbl_brand:'品牌',lbl_week:'周',lbl_channel:'渠道',lbl_weeks:'周期',
+    all:'全部',
+    th_product:'产品',th_official:'官网',th_best:'最优价',th_trend:'4周趋势',
+    hint_recent:'%为与建议零售价差异 · 悬停趋势线查看历史价格 · 点击价格跳转产品页面',
+    eyebrow_recent:'最新快照',eyebrow_hist:'历史数据',
+    hist_title_fn:(f,t)=>`${f} → ${t}`,
+    table_title_fn:(ser,wk,gen)=>`${ser} · ${wk} · <span style="font-family:'DM Mono',monospace;font-size:.75rem;font-weight:400;color:var(--text2)">更新于 ${gen}</span>`,
+    all_series:'全部系列',series_label:(n)=>`系列 ${n}`,
+    leg_down:'较上周降价',leg_up:'较上周涨价',leg_na:'未记录',leg_cur:'当前周',
+    no_data:'当前筛选条件下无数据',
+    th_product_hist:'产品',th_chan_hist:'渠道',
+    lang_btn:'English',theme_light:'☀️ 浅色',theme_dark:'🌙 深色',
+  }
+};
+let lang='en';
+function T(k){return STRINGS[lang][k]||STRINGS.en[k]||k;}
+
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.dataset.i18n;
+    if(STRINGS[lang][k]!==undefined)el.textContent=STRINGS[lang][k];
+  });
+  document.getElementById('lang-btn').textContent=T('lang_btn');
+  document.getElementById('theme-btn').textContent=isLight?T('theme_dark'):T('theme_light');
+  // Readme panels follow main lang
+  document.getElementById('rm-en').classList.toggle('active',lang==='en');
+  document.getElementById('rm-zh').classList.toggle('active',lang==='zh');
+  buildSeriesChips();buildBrandChips();buildHistChanChips();render();
+}
+
+function toggleLang(){
+  lang=lang==='en'?'zh':'en';
+  applyLang();
+}
+
+/* ── Brand / channel defs ─────────────────────────────────────── */
+const BRAND_DEFS={
+  Xiaomi:{color:'var(--b-xiaomi)',rowColor:'rgba(255,143,64,.28)'},
+  Samsung:{color:'var(--b-samsung)',rowColor:'rgba(89,194,255,.25)'},
+  Lenovo:{color:'var(--b-lenovo)',rowColor:'rgba(170,217,76,.2)'},
+  Honor:{color:'var(--b-honor)',rowColor:'rgba(240,113,120,.25)'},
+  Huawei:{color:'var(--b-huawei)',rowColor:'rgba(210,166,255,.22)'},
+  Other:{color:'var(--b-other)',rowColor:'rgba(138,145,153,.18)'},
+};
+const CHANNELS=['Official Site','Liverpool','Elektra','Coppel','Telcel'];
+const CHAN_COLORS={'Official Site':'#ff8f40','Liverpool':'#39bae6','Elektra':'#f07178','Coppel':'#ffb454','Telcel':'#d2a6ff'};
+const SERIES_VALS=[85,84,83,82];
+const BRAND_ORDER=['Xiaomi','Samsung','Lenovo','Honor','Huawei','Other'];
+const BRAND_FILTERS=['all','Xiaomi','Samsung','Lenovo','Honor','Huawei'];
+const HIST_CHANNELS=['all',...CHANNELS];
+const ACC_NAMES={'key':'Keyboard','stylus':'Pen'};
+
+/* ── State ────────────────────────────────────────────────────── */
+let selectedWeek=WEEKS[WEEKS.length-1];
+let filterSeries='all';
+let filterBrand='all';
+let filterHistChannel='all';
+let histWeekFrom=WEEKS[0];
+let histWeekTo=WEEKS[WEEKS.length-1];
+let isLight=false;
+let activeTab='recent';
+
+/* ── Theme ────────────────────────────────────────────────────── */
+function toggleTheme(){
+  isLight=!isLight;
+  document.body.classList.toggle('light',isLight);
+  document.getElementById('theme-btn').textContent=isLight?T('theme_dark'):T('theme_light');
+}
+
+
+/* ── Tab switching ────────────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    activeTab=btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id==='pane-'+activeTab));
+    const isHist=activeTab==='historical';
+    const isReadme=activeTab==='readme';
+    document.getElementById('filter-bar').style.display=isReadme?'none':'block';
+    document.getElementById('week-group').style.display=isHist?'none':'flex';
+    document.getElementById('week-divider').style.display=isHist?'none':'block';
+    document.getElementById('hist-chan-group').style.display=isHist?'flex':'none';
+    document.getElementById('hist-chan-div').style.display=isHist?'block':'none';
+    document.getElementById('hist-range-group').style.display=isHist?'flex':'none';
+    document.getElementById('hist-range-div').style.display=isHist?'block':'none';
+    render();
+  });
+});
+
+/* ── Floating tooltip ─────────────────────────────────────────── */
+const ttEl=document.getElementById('tt');
+function showTip(el,t){ttEl.textContent=t;ttEl.classList.add('show');posTip(el);}
+function posTip(el){
+  const r=el.getBoundingClientRect(),tw=ttEl.offsetWidth,th=ttEl.offsetHeight;
+  let x=r.left+r.width/2-tw/2,y=r.top-th-8;
+  if(x<8)x=8;if(x+tw>window.innerWidth-8)x=window.innerWidth-tw-8;if(y<8)y=r.bottom+8;
+  ttEl.style.left=x+'px';ttEl.style.top=y+'px';
+}
+function hideTip(){ttEl.classList.remove('show');}
+document.addEventListener('mouseover',e=>{const el=e.target.closest('.spark-svg');if(el?.dataset.tip)showTip(el,el.dataset.tip);});
+document.addEventListener('mouseout',e=>{if(e.target.closest('.spark-svg'))hideTip();});
+document.addEventListener('mousemove',e=>{if(ttEl.classList.contains('show')){const el=e.target.closest('.spark-svg');if(el)posTip(el);}});
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+function fmtPrice(str){
+  if(!str)return null;
+  const parts=str.split('/').map(p=>{const n=parseInt(p);return isNaN(n)?null:'$'+n.toLocaleString('es-MX');}).filter(Boolean);
+  return parts.length?parts.join(' / '):null;
+}
+function primaryNum(str){if(!str)return null;const n=parseInt(str.split('/')[0]);return isNaN(n)?null:n;}
+function disc(p,r){if(!p||!r)return null;return Math.round((p-r)/r*100);}
+function channelKey(ch){
+  const c=(ch||'').toLowerCase();
+  if(c.includes('official')||c.includes('oficial')||c.includes('mi.com')||c.includes('samsung.com')||c.includes('lenovo')||c.includes('honor')||c.includes('huawei')||c.includes('consumer'))return 'Official Site';
+  if(c.includes('liverpool'))return 'Liverpool';if(c.includes('elektra'))return 'Elektra';
+  if(c.includes('coppel'))return 'Coppel';if(c.includes('telcel'))return 'Telcel';return ch;
+}
+function brandKey(b){
+  const s=(b||'').trim();
+  if(s==='Redmi'||s==='POCO'||s==='Xiaomi'||s==='Redmi Pad')return 'Xiaomi';
+  if(s.startsWith('Huawei'))return 'Huawei';if(s.startsWith('Honor'))return 'Honor';
+  if(s.startsWith('Lenovo'))return 'Lenovo';if(s.startsWith('Samsung'))return 'Samsung';return 'Other';
+}
+
+/* ── Sparkline ────────────────────────────────────────────────── */
+function sparkSVG(grpRows){
+  const idx=WEEKS.indexOf(selectedWeek);if(idx<0)return '<span class="price-na">—</span>';
+  const slice=WEEKS.slice(Math.max(0,idx-3),idx+1);
+  const vals=slice.map(w=>{let best=null;grpRows.forEach(r=>{const p=primaryNum(r.prices[w]);if(p&&(best===null||p<best))best=p;});return best;});
+  const nonNull=vals.filter(v=>v!==null);
+  if(nonNull.length<2)return nonNull.length===1?`<span style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--text2)">$${nonNull[0].toLocaleString('es-MX')}</span>`:'<span class="price-na">—</span>';
+  const W=90,H=28,P=3,min=Math.min(...nonNull),max=Math.max(...nonNull),rng=max-min||1;
+  const pts=vals.map((v,i)=>({x:P+(i/(slice.length-1))*(W-P*2),y:v===null?null:P+(1-(v-min)/rng)*(H-P*2),v}));
+  let segs=[],cur=[];pts.forEach(p=>{if(p.y===null){if(cur.length>1)segs.push(cur);cur=[];}else cur.push(p);});if(cur.length>1)segs.push(cur);
+  const lines=segs.map(s=>`<polyline points="${s.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  const allP=pts.filter(p=>p.y!==null);
+  const lastP=allP[allP.length-1],prevP=allP[allP.length-2];
+  let dc='var(--muted)';if(lastP&&prevP)dc=lastP.v<prevP.v?'var(--pos)':lastP.v>prevP.v?'var(--neg)':'var(--muted)';
+  const lastDot=lastP?`<circle cx="${lastP.x.toFixed(1)}" cy="${lastP.y.toFixed(1)}" r="3" fill="${dc}" stroke="var(--s0)" stroke-width="1.2"/>`:'';
+  const midDots=allP.slice(0,-1).map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.8" fill="var(--accent)" opacity=".5"/>`).join('');
+  const tipText=slice.map((w,i)=>vals[i]?`${w}: $${vals[i].toLocaleString('es-MX')}`:null).filter(Boolean).join('  ·  ');
+  return `<span class="spark-svg" data-tip="${tipText}" style="display:inline-block;cursor:default"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible">${lines}${midDots}${lastDot}</svg></span>`;
+}
+
+/* ── Chips ────────────────────────────────────────────────────── */
+function buildSeriesChips(){
+  const div=document.getElementById('series-chips');div.innerHTML='';
+  [{val:'all',label:T('all')},...SERIES_VALS.map(v=>({val:v,label:T('series_label')(v)}))].forEach(s=>{
+    const btn=document.createElement('button');btn.className='chip'+(filterSeries===s.val?' active':'');btn.textContent=s.label;
+    btn.addEventListener('click',()=>{filterSeries=s.val;buildSeriesChips();render();});div.appendChild(btn);
+  });
+}
+function buildBrandChips(){
+  const div=document.getElementById('brand-chips');div.innerHTML='';
+  BRAND_FILTERS.forEach(b=>{
+    const btn=document.createElement('button');btn.className='chip'+(filterBrand===b?' active':'');
+    const d=BRAND_DEFS[b];
+    btn.innerHTML=d?`<span class="dot" style="background:${d.color}"></span>${b==='all'?T('all'):b}`:T('all');
+    btn.addEventListener('click',()=>{filterBrand=b;buildBrandChips();render();});div.appendChild(btn);
+  });
+}
+function buildHistChanChips(){
+  const div=document.getElementById('hist-chan-chips');div.innerHTML='';
+  HIST_CHANNELS.forEach(c=>{
+    const btn=document.createElement('button');btn.className='chip'+(filterHistChannel===c?' active':'');
+    btn.textContent=c==='all'?T('all'):c;
+    btn.addEventListener('click',()=>{filterHistChannel=c;buildHistChanChips();buildHistorical();});div.appendChild(btn);
+  });
+}
+
+/* ── Week selects ─────────────────────────────────────────────── */
+const wSel=document.getElementById('f-week');
+[...WEEKS].reverse().forEach(w=>{const o=document.createElement('option');o.value=w;o.textContent=w;if(w===selectedWeek)o.selected=true;wSel.appendChild(o);});
+wSel.addEventListener('change',e=>{selectedWeek=e.target.value;render();});
+
+function populateRangeSelects(){
+  const fromSel=document.getElementById('hist-from'),toSel=document.getElementById('hist-to');
+  fromSel.innerHTML='';toSel.innerHTML='';
+  WEEKS.forEach(w=>{
+    const o1=document.createElement('option');o1.value=w;o1.textContent=w;if(w===histWeekFrom)o1.selected=true;fromSel.appendChild(o1);
+    const o2=document.createElement('option');o2.value=w;o2.textContent=w;if(w===histWeekTo)o2.selected=true;toSel.appendChild(o2);
+  });
+  fromSel.addEventListener('change',e=>{histWeekFrom=e.target.value;buildHistorical();});
+  toSel.addEventListener('change',e=>{histWeekTo=e.target.value;buildHistorical();});
+}
+
+document.getElementById('meta-source').textContent=DATA.meta.source;
+document.getElementById('meta-note').textContent=DATA.meta.note;
+document.getElementById('meta-gen').textContent=DATA.meta.generated;
+
+/* ── Filtering ────────────────────────────────────────────────── */
+function getFiltered(chanOverride){
+  const ch=chanOverride||null;
+  return PRODUCTS.filter(p=>{
+    if(filterSeries!=='all'&&p.series!=filterSeries)return false;
+    if(filterBrand!=='all'&&brandKey(p.brand)!==filterBrand)return false;
+    if(ch&&ch!=='all'&&channelKey(p.channel)!==ch)return false;
+    return true;
+  });
+}
+function groupedModels(prods){
+  const m={};
+  prods.forEach(p=>{
+    const k=`${p.series}|${p.brand}|${p.model}`;
+    if(!m[k])m[k]={series:p.series,brand:p.brand,model:p.model,memory:p.memory,accessory:p.accessory,rows:[]};
+    m[k].rows.push(p);
+  });
+  return Object.values(m).sort((a,b)=>{
+    const sd=a.series-b.series;if(sd)return sd;
+    const ai=BRAND_ORDER.indexOf(brandKey(a.brand)),bi=BRAND_ORDER.indexOf(brandKey(b.brand));
+    const bd=(ai<0?99:ai)-(bi<0?99:bi);if(bd)return bd;
+    return a.model.localeCompare(b.model);
+  });
+}
+
+/* ── Recent Snapshot table ────────────────────────────────────── */
+function buildTableA(){
+  const filtered=getFiltered(),groups=groupedModels(filtered);
+  const body=document.getElementById('tbl-a-body');body.innerHTML='';
+  const serLabel=filterSeries==='all'?T('all_series'):T('series_label')(filterSeries);
+  document.getElementById('table-title').innerHTML=T('table_title_fn')(serLabel,selectedWeek,DATA.meta.generated);
+  if(!groups.length){body.innerHTML=`<tr><td colspan="7" class="empty-state">${T('no_data')}</td></tr>`;return;}
+
+  const xiaomiRef={};
+  PRODUCTS.forEach(p=>{
+    if(brandKey(p.brand)!=='Xiaomi')return;
+    const pn=primaryNum(p.prices[selectedWeek]);if(!pn)return;
+    const ck=channelKey(p.channel),key=`${p.series}|${ck}`;
+    if(!xiaomiRef[key]||pn<xiaomiRef[key])xiaomiRef[key]=pn;
+  });
+
+  let curSeries=null;
+  groups.forEach(grp=>{
+    const bk=brandKey(grp.brand),d=BRAND_DEFS[bk]||BRAND_DEFS.Other;
+    if(filterSeries==='all'&&grp.series!==curSeries){
+      curSeries=grp.series;
+      const hr=document.createElement('tr');
+      hr.innerHTML=`<td colspan="7" style="padding:8px 14px;background:var(--s2);font-family:'DM Mono',monospace;font-size:.65rem;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;border-top:2px solid var(--border)">${T('series_label')(curSeries)}</td>`;
+      body.appendChild(hr);
+    }
+    const cp={};
+    grp.rows.forEach(r=>{const ck=channelKey(r.channel);const p=r.prices[selectedWeek];if(p&&!cp[ck])cp[ck]={price:p,link:r.link,rrp:r.rrp};});
+
+    function dCls(pct){return pct===null?'disc-neu':pct<=-20?'disc-neg':pct<=-5?'disc-pos':'disc-neu';}
+    function cellHtml(ch){
+      const c=cp[ch];if(!c)return`<td class="right"><span class="price-na">—</span></td>`;
+      const pn=primaryNum(c.price),chanRrp=primaryNum(c.rrp),pct=disc(pn,chanRrp),ps=pct!==null?(pct>0?'+':'')+pct+'%':'';
+      const isComp=bk!=='Xiaomi',ourRef=xiaomiRef[`${grp.series}|${ch}`],cheaper=isComp&&pn&&ourRef&&pn<ourRef;
+      const priceStyle=cheaper?'color:var(--neg);font-weight:700':'color:inherit';
+      const lO=c.link?`<a href="${c.link}" target="_blank" onclick="event.stopPropagation()" style="${priceStyle}">`:`<span style="${priceStyle}">`;
+      const lC=c.link?'</a>':'</span>';
+      const tdExtra=cheaper?' style="background:rgba(240,113,120,.07);border-left:2px solid rgba(240,113,120,.4)"':'';
+      const rrpLine=chanRrp?`<div style="font-family:'DM Mono',monospace;font-size:.58rem;font-weight:300;color:var(--muted);margin-top:1px">$${chanRrp.toLocaleString('es-MX')}</div>`:'';
+      return`<td class="right"${tdExtra}><div class="price-main">${lO}${fmtPrice(c.price)||'—'}${lC}</div>${rrpLine}${ps?`<div class="price-disc ${dCls(pct)}">${ps}</div>`:''}</td>`;
+    }
+    const modelName=grp.model.replace(/\s*\([^)]+\)/,'');
+    const memPart=grp.memory?`<span style="font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted)">${grp.memory.replace(/,\s*/g,' / ')}</span>`:'';
+    const accParts=grp.accessory?grp.accessory.split(',').map(a=>a.trim()).filter(Boolean).map(a=>`<span style="font-family:'DM Mono',monospace;font-size:.58rem;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--s2);color:var(--text2);white-space:nowrap">${ACC_NAMES[a.toLowerCase()]||a}</span>`).join(''):'';
+    const metaRow=(memPart||accParts)?`<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px">${memPart}${accParts}</div>`:'';
+    const tr=document.createElement('tr');tr.setAttribute('data-rc','1');tr.style.setProperty('--row-color',d.rowColor);
+    tr.innerHTML=`<td><div style="font-weight:600;font-size:.8rem;color:${d.color}">${modelName}</div>${metaRow}</td>${cellHtml('Official Site')}${cellHtml('Liverpool')}${cellHtml('Elektra')}${cellHtml('Coppel')}${cellHtml('Telcel')}<td class="spark-cell">${sparkSVG(grp.rows)}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+/* ── Historical Data table ────────────────────────────────────── */
+function buildHistorical(){
+  const fromIdx=Math.max(0,WEEKS.indexOf(histWeekFrom));
+  const toIdx=Math.max(fromIdx,WEEKS.indexOf(histWeekTo));
+  const visWeeks=WEEKS.slice(fromIdx,toIdx+1);
+  document.getElementById('hist-title').textContent=T('hist_title_fn')(histWeekFrom,histWeekTo);
+
+  const filtered=getFiltered(filterHistChannel);
+  const rows=[];const seen=new Set();
+  const chOrder={};CHANNELS.forEach((c,i)=>chOrder[c]=i);
+  groupedModels(filtered).forEach(grp=>{
+    [...grp.rows].sort((a,b)=>(chOrder[channelKey(a.channel)]??99)-(chOrder[channelKey(b.channel)]??99)).forEach(r=>{
+      const key=`${r.brand}|${r.model}|${r.channel}`;
+      if(!seen.has(key)){seen.add(key);rows.push({...r,_bk:brandKey(r.brand),_grp:grp});}
+    });
+  });
+
+  const head=document.getElementById('hist-head');head.innerHTML='';
+  const thP=document.createElement('th');thP.className='h-product';thP.textContent=T('th_product_hist');head.appendChild(thP);
+  const thC=document.createElement('th');thC.className='h-chan';thC.textContent=T('th_chan_hist');head.appendChild(thC);
+  const thR=document.createElement('th');thR.textContent='RRP';thR.style.cssText='text-align:right;min-width:80px';head.appendChild(thR);
+  visWeeks.forEach(w=>{const th=document.createElement('th');th.textContent=w;if(w===selectedWeek)th.classList.add('cur-week');head.appendChild(th);});
+
+  const body=document.getElementById('hist-body');body.innerHTML='';
+  if(!rows.length){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="${visWeeks.length+3}" class="empty-state">${T('no_data')}</td>`;body.appendChild(tr);return;}
+
+  let lastModelKey='';
+  rows.forEach(r=>{
+    const modelKey=`${r.brand}|${r.model}`;const isFirst=modelKey!==lastModelKey;lastModelKey=modelKey;
+    const d=BRAND_DEFS[r._bk]||BRAND_DEFS.Other;const ck=channelKey(r.channel);
+    const modelName=r.model.replace(/\s*\([^)]+\)/,'');
+    const tr=document.createElement('tr');if(isFirst)tr.classList.add('model-first-row');
+    const tdP=document.createElement('td');tdP.className='h-product';
+    if(isFirst){const mem=r._grp.memory?r._grp.memory.replace(/,\s*/g,' / '):'';tdP.innerHTML=`<span style="color:${d.color};font-weight:700">${modelName}</span>${mem?`<br><span style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);font-weight:400">${mem}</span>`:''}`;}
+    tr.appendChild(tdP);
+    const tdC=document.createElement('td');tdC.className='h-chan';tdC.innerHTML=`<span style="color:${CHAN_COLORS[ck]||'var(--muted)'}">${ck}</span>`;tr.appendChild(tdC);
+    const tdR=document.createElement('td');
+    const rrpN=primaryNum(r.rrp);
+    tdR.style.cssText='text-align:right;font-family:\'DM Mono\',monospace;font-size:.65rem;font-weight:300;color:var(--muted);white-space:nowrap';
+    tdR.textContent=rrpN?'$'+rrpN.toLocaleString('es-MX'):'—';
+    tr.appendChild(tdR);
+    visWeeks.forEach((w,wi)=>{
+      const td=document.createElement('td');if(w===selectedWeek)td.classList.add('cur-week');
+      const pn=primaryNum(r.prices[w]);
+      let prevPn=null;
+      if(wi>0){prevPn=primaryNum(r.prices[visWeeks[wi-1]]);}
+      else{const gi=WEEKS.indexOf(w);for(let i=gi-1;i>=0;i--){const p=primaryNum(r.prices[WEEKS[i]]);if(p){prevPn=p;break;}}}
+      if(pn){
+        td.classList.add('has-price');
+        let arrow='';
+        if(prevPn!==null){if(pn<prevPn)arrow=`<span class="wow wow-down">▼</span>`;else if(pn>prevPn)arrow=`<span class="wow wow-up">▲</span>`;}
+        const inner=r.link?`<a href="${r.link}" target="_blank" style="color:inherit;text-decoration:none">$${pn.toLocaleString('es-MX')}</a>`:'$'+pn.toLocaleString('es-MX');
+        td.innerHTML=inner+arrow;
+      }else{td.classList.add('no-price');td.textContent='—';}
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
+/* ── Export ───────────────────────────────────────────────────── */
+function exportHistorical(){
+  const fromIdx=Math.max(0,WEEKS.indexOf(histWeekFrom));
+  const toIdx=Math.max(fromIdx,WEEKS.indexOf(histWeekTo));
+  const visWeeks=WEEKS.slice(fromIdx,toIdx+1);
+  const filtered=getFiltered(filterHistChannel);
+  const rows=[];const seen=new Set();
+  const chOrder={};CHANNELS.forEach((c,i)=>chOrder[c]=i);
+  groupedModels(filtered).forEach(grp=>{
+    [...grp.rows].sort((a,b)=>(chOrder[channelKey(a.channel)]??99)-(chOrder[channelKey(b.channel)]??99)).forEach(r=>{
+      const key=`${r.brand}|${r.model}|${r.channel}`;
+      if(!seen.has(key)){seen.add(key);rows.push({...r,_bk:brandKey(r.brand),_grp:grp});}
+    });
+  });
+  const header=['Brand','Model','Memory','Channel',...visWeeks];
+  const sheetData=[header];
+  rows.forEach(r=>{
+    const mem=r._grp.memory?r._grp.memory.replace(/,\s*/g,' / '):'';
+    sheetData.push([r._bk,r.model.replace(/\s*\([^)]+\)/,''),mem,channelKey(r.channel),...visWeeks.map(w=>primaryNum(r.prices[w])||'')]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols']=[{wch:10},{wch:26},{wch:14},{wch:14},...visWeeks.map(()=>({wch:11}))];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Historical Data');
+  const serLabel=filterSeries==='all'?'All':`S${filterSeries}`;
+  XLSX.writeFile(wb,`PAD_Prices_${serLabel}_${histWeekFrom}_${histWeekTo}.xlsx`);
+}
+
+/* ── Render ───────────────────────────────────────────────────── */
+function render(){
+  if(activeTab==='recent')buildTableA();
+  else if(activeTab==='historical')buildHistorical();
+}
+
+/* ── Init ─────────────────────────────────────────────────────── */
+buildSeriesChips();buildBrandChips();buildHistChanChips();populateRangeSelects();render();
+</script>
+</body>
+</html>
